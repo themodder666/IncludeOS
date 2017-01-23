@@ -40,7 +40,7 @@ set(OS_OBJECTS
   hw/apic_revenant.cpp hw/msi.cpp hw/pci_msi.cpp
   virtio/virtio.cpp virtio/virtio_queue.cpp
   net/ethernet/ethernet.cpp net/inet_common.cpp net/ip4/arp.cpp net/ip4/ip4.cpp
-  net/tcp/tcp.cpp net/tcp/connection.cpp net/tcp/connection_states.cpp
+  net/tcp/tcp.cpp net/tcp/connection.cpp net/tcp/connection_states.cpp net/tcp/connection_translator.cpp
   net/tcp/write_queue.cpp net/tcp/rttm.cpp net/tcp/listener.cpp
   net/ip4/icmpv4.cpp net/ip4/udp.cpp net/ip4/udp_socket.cpp
   net/dns/dns.cpp net/dns/client.cpp net/dhcp/dh4client.cpp

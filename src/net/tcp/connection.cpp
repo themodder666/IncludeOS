@@ -43,7 +43,7 @@ Connection::Connection(TCP& host, port_t local_port, Socket remote) :
   on_disconnect_({this, &Connection::default_on_disconnect}),
   rtx_timer({this, &Connection::rtx_timeout}),
   timewait_timer({this, &Connection::timewait_timeout}),
-  queued_(false)
+  queued_(false),translator(std::shared_ptr<Translator>{nullptr})
 {
   setup_congestion_control();
   debug("<Connection> %s created\n", to_string().c_str());
@@ -86,7 +86,8 @@ void Connection::read(ReadBuffer&& buffer, ReadCallback callback) {
     read_request.callback = callback;
   }
   catch (const TCPException&) {
-    callback(buffer.buffer, buffer.size());
+
+    translator->on_read(buffer.buffer, buffer.size());
   }
 }
 
@@ -106,7 +107,7 @@ size_t Connection::receive(const uint8_t* data, size_t n, bool PUSH) {
       Expects(buf.full());
       // signal the user
       debug2("<Connection::receive> Buffer full - signal user\n");
-      read_request.callback(buf.buffer, buf.size());
+      translator->on_read(buf.buffer, buf.size());
       // renew the buffer, releasing the old one
       buf.clear();
     }
@@ -119,7 +120,7 @@ size_t Connection::receive(const uint8_t* data, size_t n, bool PUSH) {
   // end of data, signal the user
   if(PUSH) {
     debug2("<Connection::receive> PUSH present - signal user\n");
-    read_request.callback(buf.buffer, buf.size());
+    translator->on_read(buf.buffer, buf.size());
     // free buffer
     buf.clear();
   }
@@ -127,8 +128,10 @@ size_t Connection::receive(const uint8_t* data, size_t n, bool PUSH) {
   return received;
 }
 
-
 void Connection::write(WriteBuffer&& buffer, WriteCallback callback) {
+  translator->on_write(std::forward<WriteBuffer>(buffer), callback);
+}
+void Connection::writeNew(WriteBuffer&& buffer, WriteCallback callback) {
   try {
     // try to write
     auto written = state_->send(*this, buffer);
@@ -302,7 +305,7 @@ void Connection::close() {
 void Connection::receive_disconnect() {
   assert(!read_request.buffer.empty());
   auto& buf = read_request.buffer;
-  read_request.callback(buf.buffer, buf.size());
+  translator->on_read(buf.buffer, buf.size());
 }
 
 /*

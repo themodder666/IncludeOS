@@ -28,7 +28,6 @@
 #include "write_queue.hpp"
 #include <delegate>
 #include <util/timer.hpp>
-
 namespace net {
   class TCP;
 }
@@ -44,6 +43,7 @@ namespace tcp {
 class Connection : public std::enable_shared_from_this<Connection> {
   friend class net::TCP;
   friend class Listener;
+  friend class translator;
 
 public:
   /** Connection identifier */
@@ -52,6 +52,8 @@ public:
   class State;
   /** Disconnect event */
   struct Disconnect;
+    /** Supplied together with write - called when a write request is done. void(size_t) */
+  using WriteCallback           = delegate<void(size_t), spec::dynamic>;
 
 public:
 
@@ -102,8 +104,34 @@ public:
   inline Connection&            on_rtx_timeout(RtxTimeoutCallback);
 
 
-  /** Supplied together with write - called when a write request is done. void(size_t) */
-  using WriteCallback           = delegate<void(size_t), spec::dynamic>;
+class Translator: public std::enable_shared_from_this<Translator>{
+            public:
+                
+                Translator(Connection_ptr _ptr);
+                virtual void on_connect();
+                virtual void on_read( buffer_t buf, size_t sz);
+                virtual void on_disconnect(Connection::Disconnect a );
+                virtual void on_error(TCPException ex);
+                virtual void on_drop(const Packet& pk, const std::string& st);
+                virtual void on_close();
+                virtual void on_timeout(size_t attempts, double rto);
+                //NOOP for now, ill get back to it
+                virtual void on_write(WriteBuffer&& buffer, WriteCallback callback);
+
+            protected:
+                ConnectCallback connectCb();
+                ReadCallback readCb();
+                DisconnectCallback disconnectCb();
+                CloseCallback closeCb();
+                ErrorCallback errorCb();
+                PacketDroppedCallback dropCb();
+                RtxTimeoutCallback timeoutCb();
+                delegate<void(WriteBuffer&&,WriteCallback)> writeCb();
+                Connection_ptr ptr;
+                
+                
+
+        };
 
   inline void write(const void* buf, size_t n);
   inline void write(const void* buf, size_t n, WriteCallback callback);
@@ -441,7 +469,9 @@ public:
   // ???
   void deserialize_from(void*);
   int  serialize_to(void*);
-
+  void translate(std::shared_ptr<Translator> t){
+    this->translator.swap(t);
+  }
   /*
     Destroy the Connection.
     Clean up.
@@ -472,6 +502,10 @@ private:
 
   /** Round Trip Time Measurer */
   RTTM rttm;
+
+  /** Translator layer**/
+  std::shared_ptr<Translator> translator;
+
 
   /** Callbacks */
   ConnectCallback         on_connect_;
@@ -610,7 +644,7 @@ private:
     Write a WriteBuffer asynchronous to a remote and calls the WriteCallback when done (or aborted).
   */
   void write(WriteBuffer&& request, WriteCallback callback);
-
+  void writeNew(WriteBuffer&& request, WriteCallback callback);
   /*
     Active try to send a buffer by asking the TCP.
   */
@@ -663,19 +697,23 @@ private:
     Invoke/signal the diffrent TCP events.
   */
   void signal_connect()
-  { if(on_connect_) on_connect_(shared_from_this()); }
+  { if(on_connect_){
+  translator->on_connect();
+  }
+
+  }
 
   void signal_disconnect(Disconnect::Reason&& reason)
-  { on_disconnect_(shared_from_this(), Disconnect{reason}); }
+  { translator->on_disconnect(Disconnect{reason}); }
 
   void signal_error(TCPException error)
-  { if(on_error_) on_error_(std::forward<TCPException>(error)); }
+  { if(on_error_) translator->on_error(std::forward<TCPException>(error)); }
 
   void signal_packet_dropped(const Packet& packet, const std::string& reason)
-  { if(on_packet_dropped_) on_packet_dropped_(packet, reason); }
+  { if(on_packet_dropped_) translator->on_drop(packet, reason); }
 
   void signal_rtx_timeout()
-  { if(on_rtx_timeout_) on_rtx_timeout_(rtx_attempt_+1, rttm.RTO); }
+  { if(on_rtx_timeout_) translator->on_timeout(rtx_attempt_+1, rttm.RTO); }
 
   /*
     Drop a packet. Used for debug/callback.
