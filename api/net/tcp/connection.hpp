@@ -103,7 +103,6 @@ public:
   using RtxTimeoutCallback      = delegate<void(size_t no_attempts, double rto)>;
   inline Connection&            on_rtx_timeout(RtxTimeoutCallback);
 
-<<<<<<< HEAD
 
 class Translator: public std::enable_shared_from_this<Translator>{
             public:
@@ -134,8 +133,6 @@ class Translator: public std::enable_shared_from_this<Translator>{
 
         };
 
-=======
->>>>>>> 07ee8e00170adfb129e7c554521b7ebe359f2304
   inline void write(const void* buf, size_t n);
   inline void write(const void* buf, size_t n, WriteCallback callback);
 
@@ -472,11 +469,9 @@ class Translator: public std::enable_shared_from_this<Translator>{
   // ???
   void deserialize_from(void*);
   int  serialize_to(void*);
-<<<<<<< HEAD
   void translate(std::shared_ptr<Translator> t){
     this->translator.swap(t);
   }
-=======
 
   /** Unset all callbacks TODO: rename me **/
   void setup_default_callbacks();
