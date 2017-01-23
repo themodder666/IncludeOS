@@ -103,6 +103,7 @@ public:
   using RtxTimeoutCallback      = delegate<void(size_t no_attempts, double rto)>;
   inline Connection&            on_rtx_timeout(RtxTimeoutCallback);
 
+<<<<<<< HEAD
 
 class Translator: public std::enable_shared_from_this<Translator>{
             public:
@@ -133,6 +134,8 @@ class Translator: public std::enable_shared_from_this<Translator>{
 
         };
 
+=======
+>>>>>>> 07ee8e00170adfb129e7c554521b7ebe359f2304
   inline void write(const void* buf, size_t n);
   inline void write(const void* buf, size_t n, WriteCallback callback);
 
@@ -469,9 +472,16 @@ class Translator: public std::enable_shared_from_this<Translator>{
   // ???
   void deserialize_from(void*);
   int  serialize_to(void*);
+<<<<<<< HEAD
   void translate(std::shared_ptr<Translator> t){
     this->translator.swap(t);
   }
+=======
+
+  /** Unset all callbacks TODO: rename me **/
+  void setup_default_callbacks();
+
+>>>>>>> 07ee8e00170adfb129e7c554521b7ebe359f2304
   /*
     Destroy the Connection.
     Clean up.
@@ -556,8 +566,6 @@ private:
   using CleanupCallback   = delegate<void(Connection_ptr self)>;
   CleanupCallback         _on_cleanup_;
   inline Connection&      _on_cleanup(CleanupCallback cb);
-
-  void setup_default_callbacks();
 
   void default_on_connect(Connection_ptr);
   void default_on_disconnect(Connection_ptr, Disconnect);
