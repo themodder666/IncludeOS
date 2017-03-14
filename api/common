@@ -1,4 +1,4 @@
-// -*-C++-*-
+// -*- C++ -*-
 // This file is a part of the IncludeOS unikernel - www.includeos.org
 //
 // Copyright 2015 Oslo and Akershus University College of Applied Sciences
@@ -22,15 +22,6 @@
 
 #if !defined(__cplusplus)
 #error "IncludeOS must be built with a C++ compiler"
-#endif
-
-/* We're not building for linux */
-#if defined(__linux__)
-#warning "You are compiling for Linux target"
-#endif
-
-#if defined(_WIN32)
-#warning "You are compiling for Win32 target"
 #endif
 
 /* We're only doing 32-bit ix86 targets. */
@@ -62,27 +53,11 @@
 #undef Expects
 #undef Ensures
 
-#define Expects(cond)                                       \
-  do {                                                      \
-    if (UNLIKELY(not (cond))) {                             \
-      std::cerr << "OS: Precondition (" OS_STRINGIFY(cond)  \
-                << ") failed...\n"  << "\t...in function: " \
-                << __func__ << " @" << __FILE__ << ":"      \
-                << __LINE__ << '\n';                        \
-      std::terminate();                                     \
-    }                                                       \
-  } while(0)
+#define Expects(cond) \
+  assert(LIKELY(cond) && "OS: Precondition failed")
 
-#define Ensures(cond)                                       \
-  do {                                                      \
-    if (UNLIKELY(not (cond))) {                             \
-      std::cerr << "OS: Postcondition (" OS_STRINGIFY(cond) \
-                << ") failed...\n"  << "\t...in function: " \
-                << __func__ << " @" << __FILE__ << ":"      \
-                << __LINE__ << '\n';                        \
-      std::terminate();                                     \
-    }                                                       \
-  } while(0)
+#define Ensures(cond) \
+  assert(LIKELY(cond) && "OS: Postcondition failed")
 
 #endif //< defined(OS_TERMINATE_ON_CONTRACT_VIOLATION)
 

@@ -2,47 +2,36 @@
 #
 # Install dependencies
 
-# TODO: add cmake as dependency
-
 SYSTEM=$1
 RELEASE=$2
+
+DEPENDENCIES="curl make clang cmake nasm bridge-utils qemu jq python-jsonschema python-psutil"
 
 case $SYSTEM in
     "Darwin")
         exit 0;
         ;;
     "Linux")
+		echo ">>> Installing dependencies (requires sudo):"
         case $RELEASE in
-            "Ubuntu")
-                UBUNTU_VERSION=`lsb_release -rs`
-                if [ $(awk 'BEGIN{ print "'$UBUNTU_VERSION'"<"'16.04'" }') -eq 1 ]; then
-                    clang_version="3.6"
-                    DEPENDENCIES="gcc-5 g++-5"
-                    sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test || exit 1
-                else
-                    clang_version="3.8"
-                fi
-
-                DEPENDENCIES="curl make clang-$clang_version nasm bridge-utils qemu jq $DEPENDENCIES"
-                echo ">>> Installing dependencies (requires sudo):"
+            "debian"|"ubuntu"|"linuxmint")
+                DEPENDENCIES="$DEPENDENCIES"
                 echo "    Packages: $DEPENDENCIES"
-                sudo apt-get update || exit 1
-                sudo apt-get install -y $DEPENDENCIES || exit 1
+                sudo apt-get -qq update || exit 1
+                sudo apt-get -qqy install $DEPENDENCIES > /dev/null || exit 1
                 exit 0;
                 ;;
-            "Fedora")
-                DEPENDENCIES="curl make clang nasm bridge-utils qemu jq"
-                echo ">>> Installing dependencies (requires sudo):"
+            "fedora")
+                DEPENDENCIES="$DEPENDENCIES"
                 echo "    Packages: $DEPENDENCIES"
                 sudo dnf install $DEPENDENCIES || exit 1
                 exit 0;
                 ;;
-            "Arch")
-                DEPENDENCIES="curl make clang nasm bridge-utils qemu jq"
-                echo ">>> Installing dependencies (requires sudo):"
+            "arch")
+                DEPENDENCIES="$DEPENDENCIES python2 python2-jsonschema python2-psutil"
                 echo "    Packages: $DEPENDENCIES"
                 sudo pacman -Syyu
-                sudo pacman --needed -S $DEPENDENCIES
+                sudo pacman -S --needed $DEPENDENCIES
                 exit 0;
                 ;;
         esac

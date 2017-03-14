@@ -27,21 +27,21 @@
 #include "socket.hpp"
 
 namespace net {
+  class TCP;
 namespace tcp {
 
 class Listener {
 public:
   using AcceptCallback       = delegate<bool(Socket)>;
   using ConnectCallback      = Connection::ConnectCallback;
+  using CloseCallback        = delegate<void(Listener&)>;
   using CleanupCallback      = Connection::CleanupCallback;
 
   using SynQueue = std::deque<Connection_ptr>;
 
-  friend class net::TCP;
-
 public:
 
-  Listener(TCP& host, port_t port);
+  Listener(TCP& host, port_t port, ConnectCallback cb = nullptr);
 
   Listener& on_accept(AcceptCallback cb)
   {
@@ -55,8 +55,7 @@ public:
     return *this;
   }
 
-  bool syn_queue_full() const
-  { return syn_queue_.size() >= max_syn_backlog; }
+  bool syn_queue_full() const;
 
   /**
    * @brief Returns the local socket identified with this Listener
@@ -66,7 +65,7 @@ public:
    */
   Socket local() const;
 
-  port_t port() const
+  constexpr port_t port() const
   { return port_; }
 
   auto syn_queue_size() const
@@ -74,6 +73,10 @@ public:
 
   const SynQueue& syn_queue() const
   { return syn_queue_; }
+
+  std::string to_string() const;
+
+  void close();
 
   /** Delete copy and move constructors.*/
   Listener(Listener&) = delete;
@@ -84,6 +87,7 @@ public:
   Listener operator=(Listener&&) = delete;
 
 private:
+  friend class net::TCP;
   TCP& host_;
   const port_t port_;
   SynQueue syn_queue_;
@@ -94,17 +98,15 @@ private:
   /** */
   ConnectCallback on_connect_;
 
-  bool default_on_accept(Socket);
+  CloseCallback _on_close_;
 
-  void default_on_connect(Connection_ptr);
+  bool default_on_accept(Socket);
 
   void segment_arrived(Packet_ptr);
 
   void remove(Connection_ptr);
 
   void connected(Connection_ptr);
-
-  std::string to_string() const;
 
 };
 

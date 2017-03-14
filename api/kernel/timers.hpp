@@ -36,9 +36,9 @@ public:
 
   /// create a one-shot timer that triggers @when from now
   /// returns a timer id
-  static id_t oneshot(duration_t when, const handler_t&);
+  static id_t oneshot(duration_t when, handler_t);
   /// create a periodic timer that begins @when and repeats every @period
-  static id_t periodic(duration_t when, duration_t period, const handler_t&);
+  static id_t periodic(duration_t when, duration_t period, handler_t);
   // un-schedule timer, and free it
   static void stop(id_t);
 
@@ -49,16 +49,19 @@ public:
   typedef delegate<void(duration_t)> start_func_t;
   typedef delegate<void()> stop_func_t;
   static void init(const start_func_t&, const stop_func_t&);
-  /// signal from the underlying hardware that it is calibrated and ready to go
-  static void ready();
+
+  /// returns true when timers are enabled (globally)
+  static bool is_ready();
 
   /// handler that processes timer interrupts
   static void timers_handler();
+  /// signal from the underlying hardware that it is calibrated and ready to go
+  static void ready();
 };
 
 
 
-inline Timers::id_t Timers::oneshot(duration_t when, const handler_t& handler)
+inline Timers::id_t Timers::oneshot(duration_t when, handler_t handler)
 {
   return periodic(when, std::chrono::milliseconds(0), handler);
 }

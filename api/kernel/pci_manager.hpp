@@ -23,6 +23,7 @@
 #include <unordered_map>
 #include <delegate>
 
+#include <arch>
 #include <hw/pci_device.hpp>
 #include <hw/devices.hpp>
 
@@ -65,8 +66,6 @@ public:
     Driver_factory<Device_type> driver_factory)
   {
     drivers<Device_type>().emplace(get_driver_id(vendor, product), driver_factory);
-    // printf is not available when global constructor is called, workaround?
-    //INFO("PCI Manager", "Driver registered");
   }
 
   /** Currently a combination of Model + Product (we don't care about the revision etc. atm.)*/
@@ -108,7 +107,9 @@ private:
    */
   static void init();
 
-  friend class OS;
+  static void scan_bus(int bus);
+
+  friend void __arch_init();
 }; //< class PCI_manager
 
 template <typename Device_type>

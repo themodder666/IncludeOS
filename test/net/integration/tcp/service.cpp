@@ -100,19 +100,22 @@ void OUTGOING_TEST_INTERNET(const HostAddress& address) {
 */
 void OUTGOING_TEST(tcp::Socket outgoing) {
   INFO("TEST", "Outgoing Connection (%s)", outgoing.to_string().c_str());
-  Inet4::stack<0>().tcp().connect(outgoing)
-    ->on_connect([](auto conn) {
-        conn->write(small.data(), small.size());
-        conn->on_read(small.size(), [](tcp::buffer_t buffer, size_t n) {
-            CHECKSERT(std::string((char*)buffer.get(), n) == small, "Received SMALL");
-          });
-      })
-    .on_disconnect([](auto conn, tcp::Connection::Disconnect) {
-        CHECK(true, "Connection closed by server");
-        CHECKSERT(conn->is_state({"CLOSE-WAIT"}), "State: CLOSE-WAIT");
-        conn->close();
-      })
+  Inet4::stack<0>().tcp().connect(outgoing, [](tcp::Connection_ptr conn)
+  {
+    conn->on_read(small.size(), [](tcp::buffer_t buffer, size_t n)
+    {
+      CHECKSERT(std::string((char*)buffer.get(), n) == small, "Received SMALL");
+    });
+
+    conn->write(small);
+
+    conn->on_disconnect([](tcp::Connection_ptr conn, tcp::Connection::Disconnect) {
+      CHECK(true, "Connection closed by server");
+      CHECKSERT(conn->is_state({"CLOSE-WAIT"}), "State: CLOSE-WAIT");
+      conn->close();
+    })
     .on_close([]{ OUTGOING_TEST_INTERNET(TEST_ADDR_TIME); });
+  });
 }
 
 // Used to send big data
@@ -146,7 +149,7 @@ void Service::start(const std::string&)
   for(int i = 0; i < S; i++) small += TEST_STR;
 
   big += "start-";
-  for(int i = 0; i < B; i++) big += TEST_STR;
+  for(int i = 0; i < B; i++) big += std::to_string(i) + "-";
   big += "-end";
 
   huge = "start-";
@@ -179,10 +182,11 @@ void Service::start(const std::string&)
   CHECK(tcp.open_ports() == 0, "No (0) open ports (listening connections)");
   CHECK(tcp.active_connections() == 0, "No (0) active connections");
 
-  tcp.bind(TEST1).on_connect([](auto conn) {
-      INFO("TEST", "SMALL string (%u)", small.size());
+  tcp.bind(TEST1).on_connect([](tcp::Connection_ptr conn) {
+      INFO("Test 1", "SMALL string (%u)", small.size());
       conn->on_read(small.size(), [conn](tcp::buffer_t buffer, size_t n) {
           CHECKSERT(std::string((char*)buffer.get(), n) == small, "Received SMALL");
+          INFO("Test 1", "Succeeded, TEST2");
           conn->close();
         });
       conn->write(small);
@@ -196,14 +200,16 @@ void Service::start(const std::string&)
   /*
     TEST: Send and receive big string.
   */
-  tcp.bind(TEST2).on_connect([](auto conn) {
-      INFO("TEST", "BIG string (%u)", big.size());
+  tcp.bind(TEST2).on_connect([](tcp::Connection_ptr conn) {
+      INFO("Test 2", "BIG string (%u)", big.size());
       auto response = std::make_shared<std::string>();
-      conn->on_read(big.size(), [response, conn](tcp::buffer_t buffer, size_t n) {
-          *response += std::string((char*)buffer.get(), n);
+      conn->on_read(big.size(),
+      [response, conn] (tcp::buffer_t buffer, size_t n)
+        {
+          response->append(std::string{(char*)buffer.get(), n});
           if(response->size() == big.size()) {
-            bool OK = (*response == big);
-            CHECKSERT(OK, "Received BIG");
+            CHECKSERT((*response == big), "Received BIG");
+            INFO("Test 2", "Succeeded, TEST3");
             conn->close();
           }
         });
@@ -213,27 +219,26 @@ void Service::start(const std::string&)
   /*
     TEST: Send and receive huge string.
   */
-  tcp.bind(TEST3).on_connect([](auto conn) {
-      INFO("TEST", "HUGE string (%u)", huge.size());
+  tcp.bind(TEST3).on_connect([](tcp::Connection_ptr conn) {
+      INFO("Test 3", "HUGE string (%u)", huge.size());
       auto temp = std::make_shared<Buffer>(huge.size());
       conn->on_read(16384, [temp, conn](tcp::buffer_t buffer, size_t n) {
           memcpy(temp->data + temp->written, buffer.get(), n);
           temp->written += n;
-          //printf("Read: %u\n", n);
           // when all expected data is read
           if(temp->written == huge.size()) {
             bool OK = (temp->str() == huge);
             CHECKSERT(OK, "Received HUGE");
-            conn->close();
+            INFO("Test 3", "Succeeded, TEST4");
           }
         });
       auto half = huge.size() / 2;
-      conn->write(huge.data(), half, [half, conn](size_t n) {
-        CHECKSERT(n == half, "Wrote one half HUGE (%u bytes)", n);
+      conn->on_write([half](size_t n) {
+        CHECKSERT(n == half, "Wrote half HUGE (%u bytes)", n);
       });
-      conn->write(huge.data()+half, half, [half](size_t n) {
-        CHECKSERT(n == half, "Wrote the other half of HUGE (%u bytes)", n);
-      });
+      conn->write(huge.data(), half);
+      conn->write(huge.data()+half, half);
+      conn->close();
     });
 
   /*
@@ -244,8 +249,8 @@ void Service::start(const std::string&)
   /*
     TEST: Connection (Status etc.) and Active Close
   */
-  tcp.bind(TEST4).on_connect([](auto conn) {
-      INFO("TEST","Connection/TCP state");
+  tcp.bind(TEST4).on_connect([](tcp::Connection_ptr conn) {
+      INFO("Test 4","Connection/TCP state");
       // There should be at least one connection.
       CHECKSERT(Inet4::stack<0>().tcp().active_connections() > 0, "There is (>0) open connection(s)");
       // Test if connected.
@@ -255,7 +260,7 @@ void Service::start(const std::string&)
       // Test if state is ESTABLISHED.
       CHECKSERT(conn->is_state({"ESTABLISHED"}), "State: ESTABLISHED");
 
-      INFO("TEST", "Active close");
+      INFO("Test 4", "Active close");
       CHECKSERT(!conn->is_closing(), "Is NOT closing");
       // Setup on_disconnect event
       conn->on_disconnect([](auto conn, tcp::Connection::Disconnect) {
@@ -264,8 +269,8 @@ void Service::start(const std::string&)
         Timers::oneshot(1s,
         [conn] (auto) {
             CHECKSERT(conn->is_state({"TIME-WAIT"}), "State: TIME-WAIT");
-
-            OUTGOING_TEST({Inet4::stack<0>().router(), TEST5});
+            INFO("Test 4", "Succeeded. Trigger TEST5");
+            OUTGOING_TEST({Inet4::stack().gateway(), TEST5});
           });
 
         Timers::oneshot(5s, [] (Timers::id_t) { FINISH_TEST(); });
@@ -277,5 +282,7 @@ void Service::start(const std::string&)
       CHECKSERT(conn->is_state({"FIN-WAIT-1"}), "State: FIN-WAIT-1");
     });
 
-printf ("IncludeOS TCP test\n");
+  printf ("IncludeOS TCP test\n");
+  printf("TEST1 \n");
+
 }

@@ -9,12 +9,18 @@ inline Connection& Connection::on_connect(ConnectCallback cb) {
 }
 
 inline Connection& Connection::on_read(size_t recv_bufsz, ReadCallback cb) {
-  read(recv_bufsz, cb);
+  read_request = {{new_shared_buffer(recv_bufsz), recv_bufsz}, cb};
+  //read(recv_bufsz, cb);
   return *this;
 }
 
 inline Connection& Connection::on_disconnect(DisconnectCallback cb) {
   on_disconnect_ = cb;
+  return *this;
+}
+
+inline Connection& Connection::on_write(WriteCallback cb) {
+  writeq.on_write(std::move(cb));
   return *this;
 }
 
@@ -44,27 +50,17 @@ inline Connection& Connection::_on_cleanup(CleanupCallback cb) {
 }
 
 inline void Connection::write(const void* buf, size_t n) {
-  write(buf, n, {this, &Connection::default_on_write}, true);
-}
-
-inline void Connection::write(const void* buf, size_t n, WriteCallback callback) {
-  write(buf, n, callback, true);
+  auto buffer = new_shared_buffer(n);
+  memcpy(buffer.get(), buf, n);
+  write(Chunk{std::move(buffer), n});
 }
 
 inline void Connection::write(buffer_t buffer, size_t n) {
-  write({buffer, n, true}, {this, &Connection::default_on_write});
-}
-
-inline void Connection::write(buffer_t buffer, size_t n, WriteCallback callback) {
-  write({buffer, n, true}, callback);
+  write(Chunk{std::move(buffer), n});
 }
 
 inline void Connection::write(const std::string& str) {
   write(str.data(), str.size());
-}
-
-inline void Connection::write(const std::string& str, WriteCallback callback) {
-  write(str.data(), str.size(), callback);
 }
 
 inline void Connection::abort() {
